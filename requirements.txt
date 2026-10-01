@@ -1,0 +1,11 @@
+# Core
+requests>=2.32.0
+python-dotenv>=1.0.1
+
+# Download engine
+yt-dlp>=2025.1.15
+
+# Optional: image galleries (instagram, twitter, etc.)
+gallery-dl>=1.28.0
+
+# Optional: cookies from browser support is provided by yt-dlp itself

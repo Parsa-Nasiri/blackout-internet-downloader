@@ -1,0 +1,115 @@
+name: bot
+
+# The long-running bot. Each run works for up to RUN_MINUTES (default 330 of the
+# 6-hour ceiling), then persists state and dispatches a fresh run of itself, so
+# the bot keeps running indefinitely without ever hitting the job limit.
+#
+# The watchdog workflow (watchdog.yml) is the safety net: if this workflow dies
+# without handing off, the watchdog restarts it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      handoff:
+        description: "Set automatically by the previous run"
+        required: false
+        default: "false"
+      from_run:
+        description: "Run id that handed off to this one"
+        required: false
+        default: ""
+  schedule:
+    # Every 6 hours as a backstop; the hand-off chain normally keeps it alive.
+    # Note: scheduled runs are queued during high load, so this is a safety net,
+    # not the primary mechanism.
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: bot-run
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: BlackOut Downloader
+    runs-on: ubuntu-latest
+    # Leave headroom under the 6h hard limit.
+    timeout-minutes: 355
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore state
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/state_sync.py pull
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Verify configuration
+        env:
+          RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
+        run: python -m rubika_dl check
+
+      - name: Write heartbeat
+        run: python scripts/state_sync.py heartbeat
+
+      - name: Run bot
+        env:
+          RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
+          RUBIKA_API_BASE: ${{ vars.RUBIKA_API_BASE || 'https://botapi.rubika.ir/v3' }}
+          ADMIN_IDS: ${{ vars.ADMIN_IDS }}
+          ALLOWED_USERS: ${{ vars.ALLOWED_USERS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+          RUN_MINUTES: ${{ vars.RUN_MINUTES || '330' }}
+          DOWNLOAD_DIR: ${{ github.workspace }}/downloads
+          STATE_DIR: ${{ github.workspace }}/.state
+          STATE_GIT_PUSH: "false"
+          GITHUB_ACTIONS: "true"
+        run: python -m rubika_dl run
+        # The bot is killed at the deadline; that is expected, not a failure.
+        continue-on-error: true
+
+      - name: Write final heartbeat
+        if: always()
+        run: python scripts/state_sync.py heartbeat --status finished || true
+
+      - name: Persist state
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/state_sync.py push -m "state after run ${{ github.run_id }}" || true
+
+      - name: Hand off to the next run
+        if: always()
+        env:
+          # GH_PAT is optional. GITHUB_TOKEN can dispatch workflow_dispatch, but a
+          # PAT makes the new run independent of this run's token.
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/state_sync.py dispatch || true

@@ -1,0 +1,27 @@
+# ---- python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---- local secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- runtime data ----
+.state/
+downloads/
+logs/
+*.log
+*.session
+*.part
+*.ytdl
+cookies.txt
+
+# ---- os ----
+.DS_Store
+Thumbs.db
+desktop.ini

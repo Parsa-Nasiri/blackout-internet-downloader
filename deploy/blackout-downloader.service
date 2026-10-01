@@ -1,0 +1,37 @@
+# BlackOut Internet Downloader — systemd unit
+#
+# Install:
+#   sudo cp deploy/blackout-downloader.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now blackout-downloader
+#   journalctl -u blackout-downloader -f
+#
+# Adjust User/WorkingDirectory to match your checkout.
+
+[Unit]
+Description=BlackOut Internet Downloader (Rubika bot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=blackout
+Group=blackout
+WorkingDirectory=/opt/blackout-downloader
+EnvironmentFile=/opt/blackout-downloader/.env
+ExecStart=/opt/blackout-downloader/.venv/bin/python -m rubika_dl run
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+# Let the bot drain its job queue before dying.
+TimeoutStopSec=180
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/blackout-downloader
+
+[Install]
+WantedBy=multi-user.target

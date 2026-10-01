@@ -1,0 +1,58 @@
+name: watchdog
+
+# Safety net for the bot. If `bot.yml` is not running and its heartbeat is
+# stale (or missing), start it. Runs every 20 minutes.
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check bot health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -q -r requirements.txt
+
+      - name: Restore state
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/state_sync.py pull
+
+      - name: Check if the bot is alive
+        id: health
+        continue-on-error: true
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/state_sync.py alive
+          echo "healthy=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Restart the bot if it is down
+        if: steps.health.outcome == 'success' && steps.health.outputs.healthy != '0'
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/state_sync.py dispatch

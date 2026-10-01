@@ -1,0 +1,22 @@
+services:
+  bot:
+    build: .
+    image: blackout-downloader:latest
+    container_name: blackout-downloader
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist state (offset, user settings, stats) across restarts.
+      - ./data/.state:/app/.state
+      - ./data/downloads:/app/downloads
+    environment:
+      STATE_DIR: /app/.state
+      DOWNLOAD_DIR: /app/downloads
+      STATE_GIT_PUSH: "false"
+    # Modest footprint; raise cpus/memory for heavier 4K work.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
