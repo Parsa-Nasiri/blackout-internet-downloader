@@ -7,7 +7,7 @@ import threading
 import time
 from typing import Any
 
-from . import config, store
+from . import config, heartbeat, store
 from .commands import COMMANDS, Handlers
 from .jobs import JobQueue
 from .log import get_logger
@@ -125,6 +125,9 @@ class Bot:
         def loop() -> None:
             while not self._stop.wait(timeout=60):
                 try:
+                    # Keep the heartbeat fresh so the Actions watchdog can tell
+                    # a healthy run from a dead one.
+                    heartbeat.write("running")
                     self.queue.prune()
                     self.queue.cleanup_workspaces()
                     self.handlers.expire_pending()

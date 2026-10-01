@@ -164,37 +164,33 @@ def cmd_push(args: argparse.Namespace) -> int:
 # heartbeat
 # --------------------------------------------------------------------------
 def heartbeat_path() -> Path:
-    return STATE_DIR / "heartbeat.json"
+    # Shared with the bot loop so the two writers cannot drift apart.
+    sys.path.insert(0, str(REPO_ROOT))
+    from rubika_dl import heartbeat as _hb  # noqa: PLC0415
+
+    return _hb.heartbeat_path()
 
 
 def cmd_heartbeat(args: argparse.Namespace) -> int:
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "ts": time.time(),
-        "iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "run_id": os.getenv("GITHUB_RUN_ID", ""),
-        "status": args.status or "running",
-    }
-    heartbeat_path().write_text(json.dumps(payload), encoding="utf-8")
+    sys.path.insert(0, str(REPO_ROOT))
+    from rubika_dl import heartbeat as _hb  # noqa: PLC0415
+
+    _hb.write(args.status or "running")
     return 0
 
 
 def read_heartbeat() -> dict:
-    path = heartbeat_path()
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    sys.path.insert(0, str(REPO_ROOT))
+    from rubika_dl import heartbeat as _hb  # noqa: PLC0415
+
+    return _hb.read()
 
 
 def heartbeat_age() -> float | None:
-    data = read_heartbeat()
-    ts = data.get("ts")
-    if not ts:
-        return None
-    return time.time() - float(ts)
+    sys.path.insert(0, str(REPO_ROOT))
+    from rubika_dl import heartbeat as _hb  # noqa: PLC0415
+
+    return _hb.age()
 
 
 # --------------------------------------------------------------------------

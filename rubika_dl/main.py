@@ -6,7 +6,7 @@ import argparse
 import sys
 import time
 
-from . import __version__, config
+from . import __version__, config, heartbeat
 from .bot import Bot
 from .log import setup_logging
 from .rubika_api import RubikaClient, RubikaError
@@ -41,11 +41,19 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     bot = Bot()
     bot.install_signal_handlers()
+    # The runner writes the first heartbeat before this starts; from here the
+    # bot's housekeeper keeps it fresh.
+    heartbeat.write("starting")
     try:
         bot.run(deadline=deadline)
     except RubikaError as exc:
+        heartbeat.write("failed")
         print(f"fatal: {exc}", file=sys.stderr)
         return 1
+    except BaseException:
+        heartbeat.write("crashed")
+        raise
+    heartbeat.write("finished")
     return 0
 
 
