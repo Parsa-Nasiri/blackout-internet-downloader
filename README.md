@@ -61,7 +61,9 @@ bot.yml  ──330 min──►  persist state  ──workflow_dispatch──►
 ### 1. Create the bot
 
 1. Open [Rubika BotFather](https://rubika.ir/BotFather) and create a bot.
-2. Copy the **token** it gives you (looks like `123456789:AbCdEf...`).
+2. Copy the **token** it gives you. It is a single opaque string — Rubika does
+   not document a format, so do not expect the `123:ABC` shape Telegram uses.
+   Paste it exactly, with no spaces or line breaks.
 
 ### 2. Fork or use this repo
 

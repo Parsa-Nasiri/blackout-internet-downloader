@@ -21,6 +21,11 @@ def _env(name: str, default: str | None = None) -> str | None:
     if value is None:
         return default
     value = value.strip()
+    # GitHub secret values keep literal quotes if they were typed in, and a
+    # token copied from a shell snippet often arrives as "abc". Strip one
+    # matching surrounding pair.
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1].strip()
     return value if value else default
 
 
@@ -138,12 +143,36 @@ def ensure_dirs() -> None:
 
 
 def validate() -> list[str]:
-    """Return a list of fatal configuration problems (empty == ok)."""
+    """Return a list of fatal configuration problems (empty == ok).
+
+    Deliberately permissive about the token's shape: Rubika's docs only say
+    "the token BotFather gives you" and show an opaque string, so there is no
+    documented format to check against. Guessing one (Telegram's
+    ``bot_id:secret``) rejected perfectly good tokens. Only reject values that
+    cannot work in a URL path; ``check`` confirms the token with a live call.
+    """
     problems: list[str] = []
     if not BOT_TOKEN:
         problems.append("RUBIKA_BOT_TOKEN is not set")
-    if ":" not in BOT_TOKEN and BOT_TOKEN:
-        problems.append("RUBIKA_BOT_TOKEN looks malformed (expected 'bot_id:secret')")
+    elif not _token_looks_usable(BOT_TOKEN):
+        problems.append(
+            "RUBIKA_BOT_TOKEN contains characters that cannot appear in the "
+            "API URL (copy it again from BotFather — it should be one token "
+            "with no spaces, slashes or question marks)"
+        )
     if not API_BASE.startswith("http"):
         problems.append("RUBIKA_API_BASE must be an http(s) URL")
     return problems
+
+
+def _token_looks_usable(token: str) -> bool:
+    """True unless the token clearly cannot be placed in a URL path segment."""
+    if len(token) < 8:
+        return False
+    # The token goes into /v3/{token}/{method}, so these break the request.
+    if any(ch.isspace() for ch in token):
+        return False
+    if any(ch in token for ch in "/?#&"):
+        return False
+    # A full URL pasted in by mistake.
+    return "://" not in token

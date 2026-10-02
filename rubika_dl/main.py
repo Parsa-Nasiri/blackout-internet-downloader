@@ -66,16 +66,26 @@ def cmd_check(_args: argparse.Namespace) -> int:
         return 2
 
     print("[OK] configuration looks valid")
+    print(f"[OK] token: {_mask(config.BOT_TOKEN)}")
     try:
         client = RubikaClient()
         me = client.get_me()
     except RubikaError as exc:
         print(f"[FAIL] could not reach the API: {exc}")
+        print("       The token is only checked by this live call; if it was "
+              "copied with a stray character, paste it again from BotFather.")
         return 1
     print(f"[OK] authenticated as @{me.get('username')} (bot_id={me.get('bot_id')})")
     print(f"[OK] API base: {config.API_BASE}")
     print(f"[OK] upload ceiling: {config.MAX_UPLOAD_SIZE // (1024*1024)} MiB")
     return 0
+
+
+def _mask(token: str) -> str:
+    """Show enough of the token to spot a copy/paste mistake, never all of it."""
+    if len(token) <= 8:
+        return "*" * len(token)
+    return f"{token[:4]}…{token[-2:]} ({len(token)} chars)"
 
 
 def cmd_version(_args: argparse.Namespace) -> int:
