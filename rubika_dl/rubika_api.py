@@ -120,7 +120,9 @@ class RubikaClient:
         self.base = (base or config.API_BASE).rstrip("/")
         self.timeout = timeout
         self._local = threading.local()
-        self._proxy = proxy if proxy is not None else config.PROXY
+        # The API traffic goes through API_PROXY (an Iranian exit when the
+        # host machine sits outside Iran); PROXY alone only covers yt-dlp.
+        self._proxy = proxy if proxy is not None else config.API_PROXY
         self._upload_timeout = 60.0 * 30  # large files take a while
 
     # -- http plumbing ------------------------------------------------------
@@ -367,13 +369,13 @@ def _safe_json(response: requests.Response) -> dict[str, Any]:
         return {"status": "error", "raw": response.text[:500]}
 
 
-# Statuses that mean "this call failed". Rubika returns HTTP 200 with one of
-# these in the body; a successful call has `status: true` or no `status` at all.
-_FAILURE_STATUSES = {
-    "INVALID_INPUT", "ACCESS_DENIED", "USER_BANNED", "BOT_BANNED",
-    "NOT_FOUND", "METHOD_NOT_FOUND", "TOO_MANY_REQUESTS", "ERROR",
-    "INVALID_TOKEN", "FILE_TOO_LARGE", "FORBIDDEN", "UNAUTHORIZED",
-}
+# Success per the docs is `status: true` or no status field at all. Every
+# observed failure carries a *string* status instead (INVALID_INPUT,
+# INVALID_ACCESS, ...). So any unrecognised string fails closed: an allowlist
+# of failure statuses once let {"status": "INVALID_ACCESS"} through — Rubika's
+# actual "token is not valid" reply — and check reported a bogus token as
+# authenticated.
+_SUCCESS_STRINGS = {"OK", "SUCCESS"}
 
 
 def _is_success(body: dict[str, Any]) -> bool:
@@ -381,11 +383,9 @@ def _is_success(body: dict[str, Any]) -> bool:
     if status is None:
         # getMe with a valid token returns the bot object and no status field.
         return True
-    if status is True:
-        return True
     if isinstance(status, bool):
         return status
-    return str(status).strip().upper() not in _FAILURE_STATUSES
+    return str(status).strip().upper() in _SUCCESS_STRINGS
 
 
 def _describe_failure(body: dict[str, Any]) -> str:
@@ -394,9 +394,12 @@ def _describe_failure(body: dict[str, Any]) -> str:
         return "the API rejected the request parameters (check the token and ids)"
     if status.upper() in {"ACCESS_DENIED", "USER_BANNED", "FORBIDDEN", "UNAUTHORIZED"}:
         return "access denied by Rubika (check the bot's permissions)"
+    if status.upper() in {"INVALID_ACCESS", "INVALID_TOKEN"}:
+        return "RUBIKA_BOT_TOKEN is not valid — copy it again from BotFather"
     if status.upper() == "FILE_TOO_LARGE":
         return "Rubika rejected the file as too large"
-    detail = body.get("message") or body.get("data") or body.get("raw")
+    detail = (body.get("message") or body.get("dev_message")
+              or body.get("data") or body.get("raw"))
     if isinstance(detail, dict):
         detail = detail.get("message") or detail.get("error")
     return f"{status}{f': {str(detail)[:200]}' if detail else ''}"

@@ -59,6 +59,21 @@ def _env_list(name: str, default: list[str] | None = None) -> list[str]:
 BOT_TOKEN: str = _env("RUBIKA_BOT_TOKEN", "") or ""
 API_BASE: str = (_env("RUBIKA_API_BASE", "https://botapi.rubika.ir/v3") or "").rstrip("/")
 
+
+def _api_proxy() -> str | None:
+    """Proxy the bot itself uses to reach the Rubika API.
+
+    Rubika's API sits behind an Iranian-only network path: probes from outside
+    Iran (GitHub runners, most foreign VPSes) time out before TLS. Point
+    RUBIKA_API_PROXY at a proxy whose exit is inside Iran (or any path that
+    can reach Rubika) and the bot works from anywhere. Falls back to PROXY so
+    a single proxy variable still covers everything.
+    """
+    return _env("RUBIKA_API_PROXY") or _env("PROXY")
+
+
+API_PROXY: str | None = _api_proxy()
+
 # --------------------------------------------------------------------------
 # Access control
 # --------------------------------------------------------------------------

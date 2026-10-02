@@ -4,9 +4,33 @@
 
 **A [Rubika](https://rubika.ir) bot that downloads media from 1500+ websites.**
 
-Built on [yt-dlp](https://github.com/yt-dlp/yt-dlp) · runs for free on GitHub Actions · also runs on a VPS or Docker.
+Built on [yt-dlp](https://github.com/yt-dlp/yt-dlp) · runs on a VPS, in Docker,
+or on GitHub Actions (with an Iranian runner — see below).
 
 </div>
+
+---
+
+## Where it can run
+
+**Rubika's API is only reachable from networks inside (or whitelisted by) Iran.**
+Probes to `botapi.rubika.ir` from GitHub-hosted runners and from 14 foreign
+countries (BR, CA, CH, CY, ES, IL, ID, KZ, NL, RU, SG, TR, UK, US) all time
+out — packets are dropped before TLS. That has one hard consequence:
+
+> **GitHub-hosted runners can never run this bot.** The token, the code and the
+> workflows are all fine; the runner simply cannot open a connection.
+
+Three ways to run it, pick one:
+
+| | Where | Notes |
+|---|---|---|
+| **1. VPS in Iran** *(recommended)* | ArvanCloud / Digibyte / any Iranian host | Simplest: clone, set the token, run. Works as-is with systemd or Docker. |
+| **2. GitHub Actions, self-hosted** | A machine **inside Iran** registered as a runner for this repo | Keeps the whole hand-off/watchdog machinery and has **no 6-hour limit**. Set the repo variable `RUNNER` to your runner's label (e.g. `self-hosted`) instead of editing YAML. |
+| **3. Foreign server + Iranian exit** | Any VPS/GitHub runner + a proxy out of Iran | Set `RUBIKA_API_PROXY` (repo variable or `.env`) to a proxy whose exit can reach Rubika, e.g. `socks5://iranian-vps:1080`. |
+
+`python -m rubika_dl check` verifies the path first with a fast TCP probe and
+tells you which of these you need.
 
 ---
 
@@ -29,6 +53,10 @@ video, an MP3, an image, or a file. It supports everything yt-dlp does
 - 🍪 **Cookies & proxy** — for age-gated or region-locked media
 
 ## Why GitHub Actions?
+
+> **Reminder:** this only works on a runner that can reach Rubika — a
+> self-hosted runner inside Iran (variable `RUNNER`), or a hosted runner with
+> `RUBIKA_API_PROXY` set. See [Where it can run](#where-it-can-run).
 
 GitHub Actions gives you a free Linux box with ffmpeg, but any single job is
 killed after **6 hours**. This bot turns that limit into an advantage:
@@ -85,12 +113,22 @@ Nothing else is needed: the workflows use the `GITHUB_TOKEN` that Actions
 provides automatically, so **you do not need a personal access token** and
 there is no secret to create beyond the bot token in step 3.
 
+**Before the first run**, make sure the runner can actually reach Rubika
+(otherwise `check` fails fast — see [Where it can run](#where-it-can-run)):
+
+- Register a machine inside Iran as a self-hosted runner and set the repo
+  variable `RUNNER` to its label (e.g. `self-hosted`), **or**
+- set the repo variable `RUBIKA_API_PROXY` to a proxy whose exit reaches
+  Rubika (e.g. `socks5://iranian-vps:1080`).
+
 You can also add these **repository variables** (Settings → Variables) to tune
 it:
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `RUN_MINUTES` | `330` | Minutes per run before handing off |
+| `RUNNER` | `ubuntu-latest` | Runner label. **Set to your self-hosted Iranian runner's label** — GitHub-hosted runners cannot reach Rubika |
+| `RUBIKA_API_PROXY` | *(empty)* | Proxy the bot uses to reach the Rubika API, e.g. `socks5://iranian-vps:1080` |
 | `ALLOWED_USERS` | *(empty)* | **Leave empty so anyone can use the bot.** If set, only these Rubika user ids may use it |
 | `BLOCKED_USERS` | *(empty)* | Rubika user ids to refuse, even if allow-listed |
 | `ADMIN_IDS` | *(empty)* | Rubika user ids that always bypass the allow-list |
@@ -174,6 +212,7 @@ All settings are environment variables (or `.env`). See
 | Variable | Default | Meaning |
 |---|---|---|
 | `RUBIKA_BOT_TOKEN` | — | **Required.** From BotFather |
+| `RUBIKA_API_PROXY` | *(empty)* | Proxy for reaching the Rubika API itself (falls back to `PROXY`) |
 | `ADMIN_IDS` / `ALLOWED_USERS` / `BLOCKED_USERS` | empty | Comma-separated user ids |
 | `ALLOW_GROUPS` | `true` | Whether the bot works in groups |
 | `PROXY` | — | e.g. `socks5://127.0.0.1:1080` |
@@ -246,6 +285,7 @@ Tests use stub transports, so they never touch the network.
 
 | Symptom | Fix |
 |---|---|
+| `check` fails with **connection timed out** | The runner cannot reach Rubika — almost always a GitHub-hosted runner. Use an Iranian VPS, a self-hosted Iranian runner (`RUNNER` variable), or set `RUBIKA_API_PROXY` |
 | `getMe failed` | Token wrong, or bot not created yet |
 | Bot silent | Check the run is active in the Actions tab; check `LOG_LEVEL=DEBUG` |
 | Downloads fail on YouTube | Add `COOKIES_FILE`, or set `PROXY` |

@@ -57,6 +57,54 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+# botapi.rubika.ir drops packets from most networks outside Iran — GitHub
+# runners, and probes from 14 foreign countries (BR CA CH CY ES IL ID KZ NL RU
+# SG TR UK US) all time out — while an Iranian IP (and a few scrubbed paths)
+# connect fine. A bare TCP probe detects it before getMe burns minutes on it.
+_GEO_BLOCKED = (
+    "       The network path to botapi.rubika.ir is broken from this machine:\n"
+    "       connections are dropped before TLS. GitHub-hosted runners and most\n"
+    "       foreign VPSes time out; only some paths (an Iranian IP) work.\n"
+    "       Fix: run the bot where Rubika is reachable — a VPS inside Iran, a\n"
+    "       self-hosted GitHub runner in Iran, or set RUBIKA_API_PROXY to a\n"
+    "       proxy whose exit can reach Rubika (e.g. an Iranian exit)."
+)
+
+
+def _probe_api_host(timeout: float = 8.0) -> tuple[str, str] | None:
+    """TCP-connect to the API host.
+
+    Returns ``(category, detail)`` when unreachable — category is one of
+    ``timeout`` / ``unreachable`` (packets dropped, almost certainly the
+    geo-block above) or ``refused`` (host answered with RST, so the path works
+    and the endpoint itself is wrong) — or None if the socket opened.
+
+    Skipped when API_PROXY is set: the real getMe call then tests the whole
+    chain through the proxy, while a direct probe would measure the wrong path.
+    """
+    if config.API_PROXY:
+        return None
+    from urllib.parse import urlparse
+    import socket
+
+    parsed = urlparse(config.API_BASE)
+    host, port = parsed.hostname, parsed.port or 443
+    if not host:
+        return "refused", f"RUBIKA_API_BASE has no host: {config.API_BASE!r}"
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return None
+    except (TimeoutError, socket.timeout):
+        return "timeout", (
+            f"connection to {host}:{port} timed out after {timeout:g}s — "
+            "no route answers"
+        )
+    except ConnectionRefusedError:
+        return "refused", f"connection to {host}:{port} was refused"
+    except OSError as exc:
+        return "unreachable", f"could not connect to {host}:{port} — {exc}"
+
+
 def cmd_check(_args: argparse.Namespace) -> int:
     setup_logging()
     problems = config.validate()
@@ -67,16 +115,32 @@ def cmd_check(_args: argparse.Namespace) -> int:
 
     print("[OK] configuration looks valid")
     print(f"[OK] token: {_mask(config.BOT_TOKEN)}")
+
+    probe = _probe_api_host()
+    if probe:
+        kind, detail = probe
+        print(f"[FAIL] {detail}")
+        print(_GEO_BLOCKED if kind in ("timeout", "unreachable")
+              else "       The host answers but the port is closed — check "
+                   "RUBIKA_API_BASE.")
+        return 1
+
     try:
         client = RubikaClient()
         me = client.get_me()
     except RubikaError as exc:
         print(f"[FAIL] could not reach the API: {exc}")
-        print("       The token is only checked by this live call; if it was "
-              "copied with a stray character, paste it again from BotFather.")
+        message = str(exc).lower()
+        if "timed out" in message or "connection" in message:
+            print(_GEO_BLOCKED)
+        else:
+            print("       The token is only checked by this live call; if it was "
+                  "copied with a stray character, paste it again from BotFather.")
         return 1
     print(f"[OK] authenticated as @{me.get('username')} (bot_id={me.get('bot_id')})")
     print(f"[OK] API base: {config.API_BASE}")
+    if config.API_PROXY:
+        print(f"[OK] API proxy: {config.API_PROXY}")
     print(f"[OK] upload ceiling: {config.MAX_UPLOAD_SIZE // (1024*1024)} MiB")
     return 0
 

@@ -38,7 +38,11 @@ concurrency:
 jobs:
   run:
     name: BlackOut Downloader
-    runs-on: ubuntu-latest
+    # Rubika's API drops connections from GitHub-hosted runners (Azure IPs):
+    # hosted runs can never reach botapi.rubika.ir. Set the repository variable
+    # RUNNER to a self-hosted runner inside Iran to actually run the bot, or
+    # set RUBIKA_API_PROXY (variable) to a proxy whose exit can reach Rubika.
+    runs-on: ${{ vars.RUNNER || 'ubuntu-latest' }}
     # Leave headroom under the 6h hard limit.
     timeout-minutes: 355
     steps:
@@ -76,6 +80,7 @@ jobs:
       - name: Verify configuration
         env:
           RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
+          RUBIKA_API_PROXY: ${{ vars.RUBIKA_API_PROXY }}
         run: python -m rubika_dl check
 
       - name: Write heartbeat
@@ -85,6 +90,7 @@ jobs:
         env:
           RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
           RUBIKA_API_BASE: ${{ vars.RUBIKA_API_BASE || 'https://botapi.rubika.ir/v3' }}
+          RUBIKA_API_PROXY: ${{ vars.RUBIKA_API_PROXY }}
           ADMIN_IDS: ${{ vars.ADMIN_IDS }}
           ALLOWED_USERS: ${{ vars.ALLOWED_USERS }}
           LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
