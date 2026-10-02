@@ -25,7 +25,10 @@ on:
     - cron: "17 */6 * * *"
 
 permissions:
-  contents: read
+  # contents: write is required to push .state to the bot-state branch, and
+  # actions: write to dispatch the next run. Both apply to the automatic
+  # GITHUB_TOKEN — no personal access token needed.
+  contents: write
   actions: write
 
 concurrency:
@@ -107,9 +110,9 @@ jobs:
       - name: Hand off to the next run
         if: always()
         env:
-          # GH_PAT is optional. GITHUB_TOKEN can dispatch workflow_dispatch, but a
-          # PAT makes the new run independent of this run's token.
-          GH_PAT: ${{ secrets.GH_PAT }}
+          # The automatic GITHUB_TOKEN is enough: workflow_dispatch is exempt
+          # from the recursion guard that blocks token-triggered runs, so no
+          # personal access token is needed.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/state_sync.py dispatch || true

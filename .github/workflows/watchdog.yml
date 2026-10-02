@@ -42,7 +42,6 @@ jobs:
         id: health
         continue-on-error: true
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -52,7 +51,6 @@ jobs:
       - name: Restart the bot if it is down
         if: steps.health.outcome == 'success' && steps.health.outputs.healthy != '0'
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/state_sync.py dispatch

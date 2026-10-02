@@ -12,10 +12,13 @@ alive      exit 0 if a bot run looks healthy, 1 otherwise (used by the watchdog)
 Environment
 -----------
 GITHUB_REPOSITORY  owner/repo            (set by Actions)
-GITHUB_TOKEN       token with contents+actions write
-GH_PAT             optional PAT; preferred for dispatch so the new run is not
-                   attributed to the current run's token
+GITHUB_TOKEN       provided automatically by Actions; needs contents: read
+                   and actions: write (see the `permissions:` block in bot.yml)
 GITHUB_REF_NAME    branch to dispatch    (default: main)
+
+No personal access token is required — the automatic GITHUB_TOKEN is enough,
+because workflow_dispatch is exempt from the recursion guard that stops a run
+from triggering further runs with the same token.
 """
 
 from __future__ import annotations
@@ -53,9 +56,11 @@ def _repo() -> str:
 
 
 def _token() -> str:
-    token = os.getenv("GH_PAT") or os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN", "")
+    # GH_TOKEN/GITHUB_TOKEN are both set from the automatic Actions token in
+    # the workflows; the first two names also cover a local `gh auth` shell.
+    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN", "")
     if not token:
-        raise SystemExit("No GitHub token available (set GH_PAT or GITHUB_TOKEN)")
+        raise SystemExit("No GitHub token available (set GITHUB_TOKEN)")
     return token
 
 

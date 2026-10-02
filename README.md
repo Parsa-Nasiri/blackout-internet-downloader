@@ -24,7 +24,8 @@ video, an MP3, an image, or a file. It supports everything yt-dlp does
 - ✂️ **Auto-split** — files bigger than Rubika's 50 MiB ceiling are cut into parts with ffmpeg
 - 📊 **Live progress** — the status message updates with a progress bar, speed and ETA
 - ⚙️ **Settings** — per-user default quality and an "always ask" toggle
-- 🔒 **Access control** — allow-lists, block-lists, private/group modes
+- 🌍 **Open to everyone** — anyone who starts the bot can use it; add
+  `ALLOWED_USERS` / `BLOCKED_USERS` to restrict it later if you want
 - 🍪 **Cookies & proxy** — for age-gated or region-locked media
 
 ## Why GitHub Actions?
@@ -74,17 +75,13 @@ Push this project to your own repository (public for unlimited minutes).
 |---|---|
 | `RUBIKA_BOT_TOKEN` | the token from BotFather |
 
-### 4. (Optional) Add a PAT so runs are fully independent
-
-By default the bot dispatches the next run with the built-in `GITHUB_TOKEN`,
-which is enough. If you want the hand-off to be independent of the current
-run's token (recommended), create a **fine-grained PAT** with
-`Actions: read and write` + `Contents: read and write` on this repo and save it
-as the secret **`GH_PAT`**.
-
-### 5. Enable Actions and start the bot
+### 4. Enable Actions and start the bot
 
 Go to **Actions → bot → Run workflow**. That's it — it will keep itself alive.
+
+Nothing else is needed: the workflows use the `GITHUB_TOKEN` that Actions
+provides automatically, so **you do not need a personal access token** and
+there is no secret to create beyond the bot token in step 3.
 
 You can also add these **repository variables** (Settings → Variables) to tune
 it:
@@ -92,8 +89,9 @@ it:
 | Variable | Default | Meaning |
 |---|---|---|
 | `RUN_MINUTES` | `330` | Minutes per run before handing off |
-| `ADMIN_IDS` | *(empty)* | Comma-separated Rubika user ids with full access |
-| `ALLOWED_USERS` | *(empty)* | If set, only these users may use the bot |
+| `ALLOWED_USERS` | *(empty)* | **Leave empty so anyone can use the bot.** If set, only these Rubika user ids may use it |
+| `BLOCKED_USERS` | *(empty)* | Rubika user ids to refuse, even if allow-listed |
+| `ADMIN_IDS` | *(empty)* | Rubika user ids that always bypass the allow-list |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `RUBIKA_API_BASE` | `https://botapi.rubika.ir/v3` | API base URL |
 
@@ -250,7 +248,7 @@ Tests use stub transports, so they never touch the network.
 | Bot silent | Check the run is active in the Actions tab; check `LOG_LEVEL=DEBUG` |
 | Downloads fail on YouTube | Add `COOKIES_FILE`, or set `PROXY` |
 | `50 MiB` upload errors | Expected — files are split automatically; raise `MAX_UPLOAD_SIZE` only if your account allows it |
-| Runs stop after 6h | That is the hard cap; the hand-off should have started the next one — check `GH_PAT` and the Actions tab |
+| Runs stop after 6h | That is the hard cap; the hand-off should have started the next one — check the Actions tab and that `actions: write` is still granted to the workflow |
 | Nothing happens after a push | Workflows only run from the **default branch** — merge to `main` |
 
 ## License
